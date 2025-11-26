@@ -1,34 +1,41 @@
-const userModel = require('../models/poojamodel');
-const bcrypt = require('bcrypt');
-const generateToken = require('../middleware/poojatoken');
+const userModel = require("../models/poojamodel");
+const bcrypt = require("bcrypt");
+const generateToken = require("../middleware/poojatoken");
 
 // Register
 const userRegister = async (req, res) => {
   try {
-    const user = req.body;
+    const { name, email, password, role } = req.body;
 
-    const existsUser = await userModel.findOne({ email: user.email });
+    const existsUser = await userModel.findOne({ email });
     if (existsUser) {
       return res.status(400).send({ message: "You are already registered" });
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const hashedPassword = await bcrypt.hash(user.password, 10);
-    user.password = hashedPassword;
+    // First user becomes admin, rest default to "user"
+    const isFirstUser = (await userModel.countDocuments()) === 0;
 
-    const userData = await new userModel(user).save();
+    const userData = await new userModel({
+      name,
+      email,
+      password: hashedPassword,
+      role: isFirstUser ? "admin" : role || "user",
+    }).save();
+
     res.status(201).send({
-      message: "User successfully registered",
+      message: "User registered successfully",
       user: {
         id: userData._id,
         name: userData.name,
         email: userData.email,
-      }
+        role: userData.role,
+      },
     });
-
   } catch (error) {
-    res.status(error.status || 500).send({ 
-      message: error.message || "Error while creating user" 
+    res.status(error.status || 500).send({
+      message: error.message || "Error while creating user",
     });
   }
 };
@@ -40,33 +47,32 @@ const userLogin = async (req, res) => {
     const existsUser = await userModel.findOne({ email });
 
     if (!existsUser) {
-      const error = new Error("You are not registered");
-      error.statusCode = 404;
-      throw error;
+      return res.status(404).send({ message: "You are not registered" });
     }
 
     const isMatch = await bcrypt.compare(password, existsUser.password);
     if (!isMatch) {
-      const error = new Error("Incorrect credentials");
-      error.statusCode = 401;
-      throw error;
+      return res.status(401).send({ message: "Incorrect credentials" });
     }
 
-    const token = generateToken(existsUser._id);
+    const token = generateToken({
+      id: existsUser._id,
+      role: existsUser.role,
+    });
 
     res.status(200).send({
-      message: "User login successfully",
+      message: "User login successful",
       token,
       user: {
         id: existsUser._id,
         name: existsUser.name,
         email: existsUser.email,
-      }
+        role: existsUser.role,
+      },
     });
-
   } catch (error) {
     res.status(error.statusCode || 500).send({
-      message: error.message || "Error while login"
+      message: error.message || "Error while login",
     });
   }
 };

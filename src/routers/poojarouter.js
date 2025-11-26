@@ -1,10 +1,19 @@
-const express = require('express')
+const express = require("express");
+const { userRegister, userLogin } = require("../controllers/poojacontroller");
+const { protect, adminOnly } = require("../middleware/authMiddleware");
 
-const userController = require('../controllers/poojacontroller')
+const router = express.Router();
 
-const router = express.Router()
+router.post("/register", userRegister);
+router.post("/login", userLogin);
 
-router.post("/register", userController.userRegister)
-router.post("/login", userController.userLogin)
+router.get("/profile", protect, (req, res) => {
+  res.json({ message: "Profile details", user: req.user });
+})
 
-module.exports = router
+router.post("/product", protect, adminOnly, (req, res) => {
+  res.json({ message: "Product created by Admin" });
+});
+
+module.exports = router;
+ 
